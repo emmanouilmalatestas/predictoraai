@@ -23,8 +23,8 @@ jobs:
 
       - name: Deploy to server
         run: |
-          ssh -o StrictHostKeyChecking=no "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}" "
-            cd /home/deploy/predictoraai && \
-            git pull origin main && \
+          ssh -o StrictHostKeyChecking=no '${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}' "
+            cd /home/deploy/predictoraai &&
+            git pull origin main &&
             bash warzone-ultra.sh
           "
