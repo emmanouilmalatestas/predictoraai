@@ -21,19 +21,22 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      - name: Debug secrets
+      - name: Decode secrets
+        shell: bash
         run: |
-          echo "USER=${{ secrets.SERVER_USER }}"
-          echo "IP=${{ secrets.SERVER_IP }}"
+          echo "USER=$(echo '${{ secrets.SERVER_USER_B64 }}' | base64 -d)" >> secrets.env
+          echo "IP=$(echo '${{ secrets.SERVER_IP_B64 }}' | base64 -d)" >> secrets.env
 
-      - name: Debug lengths
+      - name: Load secrets
+        shell: bash
         run: |
-          echo "USER_LENGTH=${#SERVER_USER}"
-          echo "IP_LENGTH=${#SERVER_IP}"
-        env:
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_IP: ${{ secrets.SERVER_IP }}
+          source secrets.env
+          echo "Decoded USER=$USER"
+          echo "Decoded IP=$IP"
 
       - name: Deploy to server
+        shell: bash
         run: |
-          ssh -o StrictHostKeyChecking=no "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}" 'cd /home/deploy/predictoraai && git pull origin main && bash warzone-ultra.sh'
+          source secrets.env
+          echo "SSH will run as: $USER@$IP"
+          ssh -o StrictHostKeyChecking=no "$USER@$IP" 'cd /home/deploy/predictoraai && git pull origin main && bash warzone-ultra.sh'
