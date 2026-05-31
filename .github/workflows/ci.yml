@@ -26,6 +26,14 @@ jobs:
           echo "USER=${{ secrets.SERVER_USER }}"
           echo "IP=${{ secrets.SERVER_IP }}"
 
+        - name: Debug lengths
+          run: |
+            echo "USER_LENGTH=${#SERVER_USER}"
+            echo "IP_LENGTH=${#SERVER_IP}"
+          env:
+            SERVER_USER: ${{ secrets.SERVER_USER }}
+            SERVER_IP: ${{ secrets.SERVER_IP }}
+
       - name: Deploy to server
         run: |
           ssh -o StrictHostKeyChecking=no "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }}" 'cd /home/deploy/predictoraai && git pull origin main && bash warzone-ultra.sh'
