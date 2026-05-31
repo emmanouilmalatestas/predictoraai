@@ -27,4 +27,6 @@
 - Φάση 3: Scaling (frontend demo, monitoring)
 - Φάση 4: Exit discussions
 
+  Trigger CI/CD deploy
+
 ---
