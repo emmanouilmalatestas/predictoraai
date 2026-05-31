@@ -3,33 +3,16 @@ name: CI Pipeline
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
 
 jobs:
-  test:
+  deploy:
     runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: 2511ma!
-          POSTGRES_DB: trustlayer_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U postgres"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -37,35 +20,11 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pytest psycopg2 pytest-cov coverage pylint
 
-      - name: Seed database
+      - name: Deploy to server
         run: |
-          sleep 10
-          psql -h 127.0.0.1 -U postgres -d trustlayer_test -f seed.sql
-        env:
-          PGPASSWORD: 2511ma!
-
-      - name: Run tests with coverage
-        run: pytest --cov=. --cov-report=xml --cov-report=term
-        env:
-          PGHOST: 127.0.0.1
-          PGUSER: postgres
-          PGPASSWORD: 2511ma!
-          PGDATABASE: trustlayer_test
-
-      - name: Generate coverage badge
-        uses: tj-actions/coverage-badge-py@v2
-        with:
-          output: coverage-badge.svg
-
-      - name: Commit badge
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git remote set-url origin https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}
-          git add coverage-badge.svg
-          git commit -m "Update coverage badge" || echo "No changes to commit"
-          git push
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "
+            cd /home/deploy/predictoraai && \
+            git pull origin main && \
+            bash warzone-ultra.sh
+          "
