@@ -1,0 +1,29 @@
+log:
+  level: DEBUG
+  format: common
+
+api:
+  dashboard: true
+
+entryPoints:
+  web:
+    address: ":80"
+
+  websecure:
+    address: ":443"
+
+ping:
+  entryPoint: "web"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    watch: true
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: "admin@predictoraai.com"
+      storage: "/acme.json"
+      tlsChallenge: {}

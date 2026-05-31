@@ -1,0 +1,35 @@
+http:
+  middlewares:
+    security-headers:
+      headers:
+        stsSeconds: 15552000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: "no-referrer"
+        permissionsPolicy: "geolocation=(), microphone=(), camera=()"
+        browserXssFilter: true
+
+    rate-limit:
+      rateLimit:
+        average: 50
+        burst: 100
+
+    dashboard-auth:
+      basicAuth:
+        users:
+          # user: admin / pass: change-me
+          - "admin:$apr1$8u1t0ZpN$7b0pZp9p7m5y7qf4p7p9p/"
+
+  routers:
+    traefik-dashboard:
+      rule: "Host(`traefik.predictoraai.com`)"
+      service: api@internal
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+      middlewares:
+        - "dashboard-auth"
+        - "security-headers"

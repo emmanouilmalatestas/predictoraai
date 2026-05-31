@@ -1,0 +1,69 @@
+services:
+  api-blue:
+    image: predictoraai-backend:blue
+    container_name: predictoraai-api-blue
+    restart: always
+    env_file:
+      - ./backend/.env
+    networks:
+      - backend_internal
+    labels:
+      traefik.enable: "false"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  api-green:
+    image: predictoraai-backend:green
+    container_name: predictoraai-api-green
+    restart: always
+    env_file:
+      - ./backend/.env
+    networks:
+      - backend_internal
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.predictora.rule: "Host(`predictoraai.com`)"
+      traefik.http.routers.predictora.entrypoints: "websecure"
+      traefik.http.routers.predictora.tls.certresolver: "letsencrypt"
+      traefik.http.services.predictora.loadbalancer.server.port: "3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  frontend:
+    image: predictoraai-frontend:latest
+    container_name: predictoraai-frontend
+    restart: always
+    networks:
+      - backend_internal
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.frontend.rule: "Host(`app.predictoraai.com`)"
+      traefik.http.routers.frontend.entrypoints: "websecure"
+      traefik.http.routers.frontend.tls.certresolver: "letsencrypt"
+      traefik.http.services.frontend.loadbalancer.server.port: "3000"
+
+  db:
+    image: postgres:16
+    container_name: predictoraai-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: predictoraai
+    volumes:
+      - predictoraai_db_data:/var/lib/postgresql/data
+    networks:
+      - backend_internal
+
+networks:
+  backend_internal:
+    external: true
+
+volumes:
+  predictoraai_db_data:
