@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: predictora-prod
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+
+  selector:
+    matchLabels:
+      app: backend
+
+  template:
+    metadata:
+      labels:
+        app: backend
+
+    spec:
+      containers:
+        - name: backend
+          image: manolio/predictora-backend:prod
+          imagePullPolicy: Always
+
+          env:
+            - name: JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: predictora-backend-secrets
+                  key: JWT_SECRET_KEY
+
+            - name: ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: predictora-backend-secrets
+                  key: ADMIN_USERNAME
+
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: predictora-backend-secrets
+                  key: ADMIN_PASSWORD
+
+            - name: PREDICTORA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: predictora-backend-secrets
+                  key: PREDICTORA_API_KEY
+
+          ports:
+            - containerPort: 8000
