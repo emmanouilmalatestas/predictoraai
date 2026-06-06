@@ -15,6 +15,9 @@ jobs:
     name: Build & Push Images
     runs-on: ubuntu-latest
 
+    outputs:
+      VERSION: ${{ steps.export-version.outputs.VERSION }}
+
     env:
       VERSION_MAJOR: ${{ secrets.VERSION_MAJOR }}
       VERSION_MINOR: ${{ secrets.VERSION_MINOR }}
@@ -59,7 +62,8 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
 
       - name: Export VERSION
-        run: echo "VERSION=${{ steps.version.outputs.VERSION }}" >> "$GITHUB_ENV"
+        id: export-version
+        run: echo "VERSION=${{ steps.version.outputs.VERSION }}" >> "$GITHUB_OUTPUT"
 
   deploy-dev:
     name: Deploy to Dev
@@ -82,13 +86,24 @@ jobs:
       - name: Deploy Backend
         run: |
           export KUBECONFIG=$PWD/kubeconfig
-          kubectl -n predictoraai set image deployment/backend backend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:${{ env.VERSION }}
-          kubectl -n predictoraai rollout status deployment/backend --timeout=120s
+
+          echo "🔄 Updating backend image (dev)..."
+          kubectl -n predictoraai set image deployment/backend backend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:${{ needs.build-and-push.outputs.VERSION }}
+
+          echo "⏳ Waiting for backend rollout (dev)..."
+          if ! kubectl -n predictoraai rollout status deployment/backend --timeout=120s; then
+            echo "❌ Dev rollout failed. Triggering auto‑rollback..."
+            kubectl -n predictoraai rollout undo deployment/backend
+            echo "⚠️ Dev backend rolled back to previous working version."
+            exit 1
+          fi
+
+          echo "✅ Dev backend rollout successful."
 
       - name: Deploy Frontend
         run: |
           export KUBECONFIG=$PWD/kubeconfig
-          kubectl -n predictora-dev set image deployment/predictora-frontend predictora-frontend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ env.VERSION }}
+          kubectl -n predictora-dev set image deployment/predictora-frontend predictora-frontend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ needs.build-and-push.outputs.VERSION }}
           kubectl -n predictora-dev rollout status deployment/predictora-frontend --timeout=120s
 
   deploy-staging:
@@ -112,13 +127,24 @@ jobs:
       - name: Deploy Backend
         run: |
           export KUBECONFIG=$PWD/kubeconfig
-          kubectl -n predictoraai set image deployment/backend backend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:${{ env.VERSION }}
-          kubectl -n predictoraai rollout status deployment/backend --timeout=120s
+
+          echo "🔄 Updating backend image (staging)..."
+          kubectl -n predictoraai set image deployment/backend backend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:${{ needs.build-and-push.outputs.VERSION }}
+
+          echo "⏳ Waiting for backend rollout (staging)..."
+          if ! kubectl -n predictoraai rollout status deployment/backend --timeout=120s; then
+            echo "❌ Staging rollout failed. Triggering auto‑rollback..."
+            kubectl -n predictoraai rollout undo deployment/backend
+            echo "⚠️ Staging backend rolled back to previous working version."
+            exit 1
+          fi
+
+          echo "✅ Staging backend rollout successful."
 
       - name: Deploy Frontend
         run: |
           export KUBECONFIG=$PWD/kubeconfig
-          kubectl -n predictora-staging set image deployment/predictora-frontend predictora-frontend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ env.VERSION }}
+          kubectl -n predictora-staging set image deployment/predictora-frontend predictora-frontend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ needs.build-and-push.outputs.VERSION }}
           kubectl -n predictora-staging rollout status deployment/predictora-frontend --timeout=120s
 
   deploy-prod:
@@ -142,11 +168,22 @@ jobs:
       - name: Deploy Backend
         run: |
           export KUBECONFIG=$PWD/kubeconfig
-          kubectl -n predictora-prod set image deployment/backend backend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:${{ env.VERSION }}
-          kubectl -n predictora-prod rollout status deployment/backend --timeout=120s
+
+          echo "🔄 Updating backend image (prod)..."
+          kubectl -n predictora-prod set image deployment/backend backend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:${{ needs.build-and-push.outputs.VERSION }}
+
+          echo "⏳ Waiting for backend rollout (prod)..."
+          if ! kubectl -n predictora-prod rollout status deployment/backend --timeout=120s; then
+            echo "❌ Prod rollout failed. Triggering auto‑rollback..."
+            kubectl -n predictora-prod rollout undo deployment/backend
+            echo "⚠️ Prod backend rolled back to previous working version."
+            exit 1
+          fi
+
+          echo "✅ Prod backend rollout successful."
 
       - name: Deploy Frontend
         run: |
           export KUBECONFIG=$PWD/kubeconfig
-          kubectl -n predictora-prod set image deployment/predictora-frontend predictora-frontend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ env.VERSION }}
+          kubectl -n predictora-prod set image deployment/predictora-frontend predictora-frontend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ needs.build-and-push.outputs.VERSION }}
           kubectl -n predictora-prod rollout status deployment/predictora-frontend --timeout=120s
