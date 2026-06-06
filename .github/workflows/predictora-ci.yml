@@ -82,8 +82,8 @@ jobs:
       - name: Deploy Backend
         run: |
           export KUBECONFIG=$PWD/kubeconfig
-          kubectl -n predictora-prod set image deployment/backend backend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:${{ env.VERSION }}
-          kubectl -n predictora-prod rollout status deployment/backend --timeout=120s
+          kubectl -n predictoraai set image deployment/backend backend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:${{ env.VERSION }}
+          kubectl -n predictoraai rollout status deployment/backend --timeout=120s
 
       - name: Deploy Frontend
         run: |
@@ -112,8 +112,8 @@ jobs:
       - name: Deploy Backend
         run: |
           export KUBECONFIG=$PWD/kubeconfig
-          kubectl -n predictoraai set image deployment/backend backend=docker.io/emmanouilmalatestas/predictora-backend:${{ github.sha }}
-          kubectl -n predictoraai rollout status deployment/backend
+          kubectl -n predictoraai set image deployment/backend backend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:${{ env.VERSION }}
+          kubectl -n predictoraai rollout status deployment/backend --timeout=120s
 
       - name: Deploy Frontend
         run: |
@@ -142,8 +142,8 @@ jobs:
       - name: Deploy Backend
         run: |
           export KUBECONFIG=$PWD/kubeconfig
-          kubectl -n predictora-prod set image deployment/predictora-backend predictora-backend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:${{ env.VERSION }}
-          kubectl -n predictora-prod rollout status deployment/predictora-backend --timeout=120s
+          kubectl -n predictora-prod set image deployment/backend backend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:${{ env.VERSION }}
+          kubectl -n predictora-prod rollout status deployment/backend --timeout=120s
 
       - name: Deploy Frontend
         run: |
