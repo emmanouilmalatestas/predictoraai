@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mkdir -p .github/workflows
+
+cat > .github/workflows/predictora-ci.yml <<'EOF'
+name: Predictora CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  REGISTRY: docker.io
+  DOCKERHUB_NAMESPACE: manolio
+  BACKEND_IMAGE_NAME: predictora-backend
+  FRONTEND_IMAGE_NAME: predictora-frontend
+
+jobs:
+  build-and-push:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+
+    env:
+      VERSION_MAJOR: ${{ secrets.VERSION_MAJOR }}
+      VERSION_MINOR: ${{ secrets.VERSION_MINOR }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set VERSION
+        id: version
+        run: |
+          RUN_NUMBER="${GITHUB_RUN_NUMBER}"
+          SHORT_SHA="$(echo "${GITHUB_SHA}" | cut -c1-7)"
+          VERSION="v${VERSION_MAJOR}.${VERSION_MINOR}.${RUN_NUMBER}-${SHORT_SHA}"
+          echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & Push Backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
+
+      - name: Build & Push Frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ steps.version.outputs.VERSION }}
+
+      - name: Export VERSION
+        run: echo "VERSION=${{ steps.version.outputs.VERSION }}" >> "$GITHUB_ENV"
+
+  deploy-dev:
+    name: Deploy to Dev
+    runs-on: ubuntu-latest
+    needs: [ build-and-push ]
+    environment: dev
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Write kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG_DEV }}" > kubeconfig
+          chmod 600 kubeconfig
+
+      - name: Deploy Backend
+        run: |
+          export KUBECONFIG=$PWD/kubeconfig
+          kubectl -n predictora-dev set image deployment/predictora-backend predictora-backend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:${{ env.VERSION }}
+          kubectl -n predictora-dev rollout status deployment/predictora-backend --timeout=120s
+
+      - name: Deploy Frontend
+        run: |
+          export KUBECONFIG=$PWD/kubeconfig
+          kubectl -n predictora-dev set image deployment/predictora-frontend predictora-frontend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ env.VERSION }}
+          kubectl -n predictora-dev rollout status deployment/predictora-frontend --timeout=120s
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [ deploy-dev ]
+    environment: staging
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Write kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG_STAGING }}" > kubeconfig
+          chmod 600 kubeconfig
+
+      - name: Deploy Backend
+        run: |
+          export KUBECONFIG=$PWD/kubeconfig
+          kubectl -n predictora-staging set image deployment/predictora-backend predictora-backend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:${{ env.VERSION }}
+          kubectl -n predictora-staging rollout status deployment/predictora-backend --timeout=120s
+
+      - name: Deploy Frontend
+        run: |
+          export KUBECONFIG=$PWD/kubeconfig
+          kubectl -n predictora-staging set image deployment/predictora-frontend predictora-frontend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ env.VERSION }}
+          kubectl -n predictora-staging rollout status deployment/predictora-frontend --timeout=120s
+
+  deploy-prod:
+    name: Deploy to Prod
+    runs-on: ubuntu-latest
+    needs: [ deploy-staging ]
+    environment: prod
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Write kubeconfig
+        run: |
+          echo "${{ secrets.KUBECONFIG_PROD }}" > kubeconfig
+          chmod 600 kubeconfig
+
+      - name: Deploy Backend
+        run: |
+          export KUBECONFIG=$PWD/kubeconfig
+          kubectl -n predictora-prod set image deployment/predictora-backend predictora-backend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.BACKEND_IMAGE_NAME }}:${{ env.VERSION }}
+          kubectl -n predictora-prod rollout status deployment/predictora-backend --timeout=120s
+
+      - name: Deploy Frontend
+        run: |
+          export KUBECONFIG=$PWD/kubeconfig
+          kubectl -n predictora-prod set image deployment/predictora-frontend predictora-frontend=${{ env.REGISTRY }}/${{ env.DOCKERHUB_NAMESPACE }}/${{ env.FRONTEND_IMAGE_NAME }}:${{ env.VERSION }}
+          kubectl -n predictora-prod rollout status deployment/predictora-frontend --timeout=120s
+EOF
+
+echo "Created .github/workflows/predictora-ci.yml"
